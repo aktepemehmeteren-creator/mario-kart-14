@@ -1,0 +1,47 @@
+
+name: Build Mario Kart PSP
+
+"on":
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kaynak kodlarını indir
+        uses: actions/checkout@v4
+
+      - name: Gerekli dosyaları kontrol et
+        run: |
+          test -f main.c
+          test -f CMakeLists.txt
+          test -f assets_pack.zip
+
+      - name: PSPDEV ile derle
+        run: |
+          docker pull pspdev/pspdev:latest
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w /src \
+            pspdev/pspdev:latest \
+            sh -c 'rm -rf build && mkdir build && cd build && psp-cmake .. && make -j2'
+
+      - name: EBOOT dosyasını bul ve paketle
+        run: |
+          EBOOT="$(find build -name EBOOT.PBP -type f -print -quit)"
+          test -n "$EBOOT"
+          mkdir -p release/PSP/GAME/MarioKartPSP
+          cp "$EBOOT" release/PSP/GAME/MarioKartPSP/EBOOT.PBP
+          unzip -oq assets_pack.zip -d release/PSP/GAME/MarioKartPSP
+
+      - name: Oyunu indirilebilir paket olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: MarioKartPSP-GAME
+          path: release/PSP/GAME/MarioKartPSP/
+          if-no-files-found: error
